@@ -7,6 +7,8 @@ data class Chat(
     val messages: MutableList<Message> = mutableListOf()
 )
 
+class MessageNotFoundException(message: String): RuntimeException(message)
+
 sealed interface ChatsResult {
     data class Content(val chats: List<Chat>) : ChatsResult
     object Empty : ChatsResult
@@ -15,11 +17,11 @@ sealed interface ChatsResult {
 interface ChatApi {
     fun getChats(): ChatsResult
     fun sendMessage(recipient: Int, message: Message)
-    fun deleteMessage(recipient: Int, message: Message)
+    fun deleteMessage(recipient: Int, message: Message): Boolean
     fun getUnreadChatsCount(): Int
-    fun deleteChat(recipient: Int)
+    fun deleteChat(recipient: Int): Boolean
     fun getMessages(recipient: Int, count: Int): List<Message>
-    fun editMessage(recipient: Int, message: Message, newText: String)
+    fun editMessage(recipient: Int, message: Message, newText: String): Message?
 }
 
 object ChatService : ChatApi {
@@ -29,15 +31,29 @@ object ChatService : ChatApi {
         return chats[recipient]?.messages.orEmpty().takeLast(count).onEach { it.read = true }
     }
 
-    override fun editMessage(recipient: Int, message: Message, newText: String) {
-        val index = chats[recipient]?.messages?.indexOf(message)
-        val editedMessage = index?.let { chats[recipient]?.messages?.get(it)?.copy(text = newText) }
-        index?.let { chats[recipient]?.messages?.removeAt(it) }
-        index?.let { editedMessage?.let { newMessage -> chats[recipient]?.messages?.add(it, newMessage) } }
+    override fun editMessage(recipient: Int, message: Message, newText: String): Message? {
+        return when {
+            chats[recipient]?.messages?.contains(message) == true -> {
+                val index = chats[recipient]?.messages?.indexOf(message)
+                val editedMessage = index?.let { chats[recipient]?.messages?.get(it)?.copy(text = newText) }
+                index?.let { chats[recipient]?.messages?.removeAt(it) }
+                index?.let { editedMessage?.let { newMessage -> chats[recipient]?.messages?.add(it, newMessage) } }
+                return editedMessage
+            }
+
+            else -> null
+        }
     }
 
-    override fun deleteChat(recipient: Int) {
-        chats.remove(recipient)
+    override fun deleteChat(recipient: Int): Boolean {
+        return when {
+            chats.containsValue(chats[recipient]) -> {
+                chats.remove(recipient)
+                true
+            }
+
+            else -> false
+        }
     }
 
     override fun getChats(): ChatsResult {
@@ -51,10 +67,17 @@ object ChatService : ChatApi {
         chats.getOrPut(recipient) { Chat() }.messages.add(message)
     }
 
-    override fun deleteMessage(recipient: Int, message: Message) {
-        chats[recipient]?.messages?.remove(message)
-        if (chats[recipient]?.messages?.isEmpty() == true) {
-            chats.remove(recipient)
+    override fun deleteMessage(recipient: Int, message: Message): Boolean {
+        return when {
+            chats[recipient]?.messages?.contains(message) == true -> {
+                chats[recipient]?.messages?.remove(message)
+                if (chats[recipient]?.messages?.isEmpty() == true) {
+                    chats.remove(recipient)
+                }
+                true
+            }
+
+            else -> false
         }
     }
 
@@ -75,7 +98,7 @@ fun main() {
     ChatService.sendMessage(2, message3)
     ChatService.printChats()
     println(ChatService.getUnreadChatsCount())
-    ChatService.deleteChat(1)
+    println(ChatService.deleteChat(1))
     ChatService.deleteMessage(1, message1)
     ChatService.deleteMessage(1, message2)
     ChatService.printChats()
@@ -85,7 +108,7 @@ fun main() {
         is ChatsResult.Empty -> println("No messages")
     }
 
-    ChatService.editMessage(2, message3, "Edited message")
+    ChatService.editMessage(2, message3, "Edited message") ?: throw MessageNotFoundException("Message not found")
     ChatService.printChats()
 }
 
