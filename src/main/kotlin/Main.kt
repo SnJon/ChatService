@@ -7,7 +7,7 @@ data class Chat(
     val messages: MutableList<Message> = mutableListOf()
 )
 
-class MessageNotFoundException(message: String): RuntimeException(message)
+class MessageNotFoundException(message: String) : RuntimeException(message)
 
 sealed interface ChatsResult {
     data class Content(val chats: List<Chat>) : ChatsResult
@@ -32,17 +32,14 @@ object ChatService : ChatApi {
     }
 
     override fun editMessage(recipient: Int, message: Message, newText: String): Message? {
-        return when {
-            chats[recipient]?.messages?.contains(message) == true -> {
-                val index = chats[recipient]?.messages?.indexOf(message)
-                val editedMessage = index?.let { chats[recipient]?.messages?.get(it)?.copy(text = newText) }
-                index?.let { chats[recipient]?.messages?.removeAt(it) }
-                index?.let { editedMessage?.let { newMessage -> chats[recipient]?.messages?.add(it, newMessage) } }
-                return editedMessage
+        return chats
+            .filter { it.value.messages.contains(message) }
+            .let {
+                it[recipient]?.messages?.set(
+                    chats[recipient]?.messages!!.indexOf(message),
+                    message.copy(text = newText)
+                )
             }
-
-            else -> null
-        }
     }
 
     override fun deleteChat(recipient: Int): Boolean {
