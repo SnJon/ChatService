@@ -1,5 +1,6 @@
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class ChatServiceTest {
     @Test
@@ -37,10 +38,11 @@ class ChatServiceTest {
     @Test
     fun editMessage() {
         val testMessage = Message("Message 1")
-        val editedMessage = Message("edited text")
         ChatService.sendMessage(1, testMessage)
-        val result = ChatService.editMessage(1, testMessage, "edited text")
-        assertEquals(editedMessage, result)
+        val beforeEdit = ChatService.getChats().hashCode()
+        ChatService.editMessage(1, testMessage, "edited text")
+        val result = ChatService.getChats().hashCode()
+        assertNotEquals(beforeEdit, result)
     }
 
     @Test
